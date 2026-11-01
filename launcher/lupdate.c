@@ -6,7 +6,7 @@
  * reads exactly the same three:
  *
  *   GET /api/builds       the newest release: its tag, and every asset with an
- *                         id, a size, a platform (macos|windows) and a kind
+ *                         id, a size, a platform (macos|windows|linux) and a kind
  *                         (full|binaries)
  *   GET /api/changelog    the changelog, entry by entry, bodies in markdown
  *   GET /api/download?asset=<id>
@@ -53,11 +53,11 @@
 
 #ifdef _WIN32
 #include <windows.h>
-#define LU_PLATFORM "windows"
 #else
 #include <unistd.h>
-#define LU_PLATFORM "macos"
 #endif
+#include "../app/platform.h"
+#define LU_PLATFORM OPENCNC3D_PLATFORM
 
 /* The site, unless a build was pointed somewhere else. A staging deployment, a
  * local `next dev`, or the selftest's fake site are the only reasons to;
@@ -101,12 +101,33 @@ struct LU_State
 
     /* lu_create_fresh: the first install into this folder (see lupdate.h). */
     int fresh;
+    int assets_only; /* Linux source builds keep their locally compiled runtime. */
     long long dl_done, dl_total; /* bytes of the package, for a size readout */
     int unreachable;             /* the last check never reached the site     */
 
     /* lu_want: the one build this state may install, "" for the newest. */
     char want[64];
 };
+
+static const char *lu_package_platform(const LU_State *u)
+{
+    return u->assets_only ? "windows" : LU_PLATFORM;
+}
+
+static const char *const lu_asset_required[] = {
+    "dosmenu.pack", "dossidebar.pack", "SCG01EA.pack", "SCB01EA.pack", "CONQUER.MIX",
+    "missions/SCG01EA.INI", "missions/SCB01EA.INI", NULL
+};
+static int lu_assets_present(const char *dir)
+{
+    int i;
+    char path[1400];
+    for (i = 0; lu_asset_required[i]; i++) {
+        snprintf(path, sizeof path, "%s/%s", dir, lu_asset_required[i]);
+        if (ln_file_size(path) <= 0) return 0;
+    }
+    return 1;
+}
 
 /* ------------------------------------------------------------------------ *
  * The little accessors. Every one takes the lock, because the whole point of
@@ -214,7 +235,10 @@ void lu_download_name(LU_State *u, char *buf, int len)
         return;
     }
     SDL_LockMutex(u->lock);
-    snprintf(buf, (size_t)len, "%s", u->full.name);
+    if (u->assets_only)
+        snprintf(buf, (size_t)len, "Game data v%s", u->latest);
+    else
+        snprintf(buf, (size_t)len, "%s", u->full.name);
     SDL_UnlockMutex(u->lock);
 }
 
@@ -361,6 +385,7 @@ static int lu_read_builds(LU_State *u, const char *json, char *err, int errlen)
     char jerr[256];
     char full_name[256], bins_name[256], legacy_bins_name[256], manifest_name[256];
     int found_full;
+    const char *platform = lu_package_platform(u);
 
     root = lj_parse(json, jerr, sizeof jerr);
     if (!root) {
@@ -372,9 +397,12 @@ static int lu_read_builds(LU_State *u, const char *json, char *err, int errlen)
         lj_free(root);
         return 0;
     }
-    latest = lu_platform_release(root, LU_PLATFORM);
+    latest = lu_platform_release(root, platform);
+#ifndef __linux__
+    /* Existing macOS/Windows installs can check a version without a full ZIP. */
     if (!latest)
         latest = lj_get(root, "latest");
+#endif
     /* A PINNED BUILD IS TAKEN FROM THE LIST, never from `latest`. Setup of one version
      * installs that version: handed the newest instead, a setup cut before the site lists
      * it would install an OLDER game than itself, and one cut after a newer release would
@@ -397,6 +425,11 @@ static int lu_read_builds(LU_State *u, const char *json, char *err, int errlen)
             return 0;
         }
     }
+    if (!latest) {
+        snprintf(err, (size_t)errlen, "opencnc3d.com is not listing a " LU_PLATFORM " build yet");
+        lj_free(root);
+        return 0;
+    }
     tag = lj_str(latest, "tag");
     if (!tag || !*tag) {
         /* An empty build list is a real state on a fresh deployment, and it is
@@ -413,9 +446,9 @@ static int lu_read_builds(LU_State *u, const char *json, char *err, int errlen)
     memset(&u->manifest, 0, sizeof u->manifest);
     u->full.id = u->bins.id = u->manifest.id = -1;
     u->latest_data[0] = '\0';
-    snprintf(full_name, sizeof full_name, "OpenCNC3D-" LU_PLATFORM "-v%s.zip", u->latest);
-    snprintf(bins_name, sizeof bins_name, "OpenCNC3DBinaries-" LU_PLATFORM "-v%s.zip", u->latest);
-    snprintf(legacy_bins_name, sizeof legacy_bins_name, "OpenCNC3D-" LU_PLATFORM "-v%s-bins.zip", u->latest);
+    snprintf(full_name, sizeof full_name, "OpenCNC3D-%s-v%s.zip", platform, u->latest);
+    snprintf(bins_name, sizeof bins_name, "OpenCNC3DBinaries-%s-v%s.zip", platform, u->latest);
+    snprintf(legacy_bins_name, sizeof legacy_bins_name, "OpenCNC3D-%s-v%s-bins.zip", platform, u->latest);
     snprintf(manifest_name, sizeof manifest_name, "OpenCNC3D-v%s-manifest.txt", u->latest);
 
     assets = lj_get(latest, "assets");
@@ -472,7 +505,10 @@ static int lu_read_builds(LU_State *u, const char *json, char *err, int errlen)
 static void lu_read_manifest(LU_State *u, const char *text)
 {
     char line[1024];
+    char data_key[64];
     const char *p = text;
+
+    snprintf(data_key, sizeof data_key, "%s_data_id", lu_package_platform(u));
 
     SDL_LockMutex(u->lock);
     while (*p) {
@@ -501,7 +537,7 @@ static void lu_read_manifest(LU_State *u, const char *text)
             continue;
         }
         if (sscanf(line, "%63s %79s", key, sha) == 2
-            && !strcmp(key, LU_PLATFORM "_data_id"))
+            && !strcmp(key, data_key))
             snprintf(u->latest_data, sizeof u->latest_data, "%s", sha);
     }
     SDL_UnlockMutex(u->lock);
@@ -602,8 +638,10 @@ static void lu_read_install(LU_State *u)
         }
         /* Only a fresh install takes the version from here: lu_create's caller
          * passes the one it read itself. */
-        if (u->fresh && !strncmp(line, "version ", 8) && line[8])
+        if (u->fresh && !u->assets_only && !strncmp(line, "version ", 8) && line[8])
             snprintf(u->installed, sizeof u->installed, "%.60s", line + 8);
+        if (u->fresh && u->assets_only && !strncmp(line, "data_version ", 13) && line[13])
+            snprintf(u->installed, sizeof u->installed, "%.60s", line + 13);
     }
     fclose(f);
 }
@@ -614,6 +652,12 @@ static void lu_read_install(LU_State *u)
  * leaving an empty record over a finished install. The caller holds u->lock. */
 static void lu_install_record(const LU_State *u, char *out, size_t outlen)
 {
+    if (u->assets_only) {
+        snprintf(out, outlen, "# Native runtime with downloaded shared game data\n"
+                 "version %s\nplatform linux\ndata_version %s\ndata_source windows\ndata_id %s\n",
+                 LCFG_BUILD, u->latest, u->latest_data[0] ? u->latest_data : "unknown");
+        return;
+    }
     snprintf(out, outlen,
              "# written by the OpenCNC3D launcher after an update\nversion %s\ndata_id %s\n",
              u->latest, u->latest_data[0] ? u->latest_data : "unknown");
@@ -848,6 +892,12 @@ static int lu_do_check(LU_State *u, char *err, int errlen)
      * newer than the approved feed. Otherwise show what the public update offers.
      * A changelog that will not load is not a failed check; the version numbers
      * are the answer and the notes are the courtesy. */
+    if (u->assets_only &&
+        (strlen(u->full.sha) != 64 || strspn(u->full.sha, "0123456789abcdef") != 64 ||
+         (u->bins.id > 0 && (strlen(u->bins.sha) != 64 || strspn(u->bins.sha, "0123456789abcdef") != 64)))) {
+        snprintf(err, (size_t)errlen, "Verified game data is not available for this build. Try again when its release checksums are available.");
+        return 0;
+    }
     if (!lz_is_private_developer(u->dir) && lu_newer(u->installed, u->latest) <= 0) {
         char cerr[256];
         text = ln_get_text(lu_api("/api/changelog", url, sizeof url), LCFG_KEY,
@@ -935,6 +985,11 @@ static int lu_do_apply(LU_State *u, char *err, int errlen)
         return 0;
     }
 
+    if (u->assets_only && !lmod_td_present(u->dir)) {
+        snprintf(err, (size_t)errlen, "Build or copy the native Linux game and TiberianDawn.so into this folder before downloading game data.");
+        return 0;
+    }
+
     /* The legacy full and binary archives both contain Dawn's executable and
      * brain. Applying either to an empty/RA-only folder would choose a game
      * the player never selected, even when an old TD data_id still matches.
@@ -997,8 +1052,12 @@ static int lu_do_apply(LU_State *u, char *err, int errlen)
     a = small ? &u->bins : &u->full;
     SDL_UnlockMutex(u->lock);
 
-    snprintf(msg, sizeof msg, "Downloading %.180s (%lld MB)...", a->name,
-             (a->size + 524288) / 1048576);
+    if (u->assets_only)
+        snprintf(msg, sizeof msg, "Downloading game data v%s (%lld MB)...", u->latest,
+                 (a->size + 524288) / 1048576);
+    else
+        snprintf(msg, sizeof msg, "Downloading %.180s (%lld MB)...", a->name,
+                 (a->size + 524288) / 1048576);
     SDL_LockMutex(u->lock);
     u->progress = 0;
     u->dl_done = 0;
@@ -1072,7 +1131,7 @@ static int lu_do_apply(LU_State *u, char *err, int errlen)
          * installed even with no network, and then the install record. The notes
          * are only ever replaced by a check, which runs on this same worker, so
          * the pointer stays good for the length of the extraction. */
-        char record[256];
+        char record[512];
         LZ_File extra[3];
         int k = 0, ok;
 
@@ -1091,7 +1150,11 @@ static int lu_do_apply(LU_State *u, char *err, int errlen)
         k++;
         extra[k].name = NULL;
 
-        ok = lz_extract(&u->lk, zip, strip, lu_markers, extra, lu_zip_progress, u, err, errlen);
+        if (u->assets_only)
+            ok = lz_extract_selected(&u->lk, zip, strip, lmod_td_asset_file,
+                                     lu_asset_required, extra, lu_zip_progress, u, err, errlen);
+        else
+            ok = lz_extract(&u->lk, zip, strip, lu_markers, extra, lu_zip_progress, u, err, errlen);
         remove(zip);
         if (!ok)
             return 0;
@@ -1124,6 +1187,7 @@ static int lu_thread(void *user)
         {
             int newer = lu_newer(u->latest, u->installed);
             char line[256];
+            if (u->assets_only && !lu_assets_present(u->dir)) newer = 1;
             if (newer > 0 && !u->fresh && !lmod_td_present(u->dir))
                 snprintf(line, sizeof line, "v%s is available. Run OpenCNC3D Installer to upgrade the launcher.", u->latest);
             else if (newer > 0)
@@ -1214,8 +1278,13 @@ void lu_want(LU_State *u, const char *version)
     if (!u)
         return;
     SDL_LockMutex(u->lock);
+    if (u->assets_only && (!version || !*version)) version = LCFG_BUILD;
     snprintf(u->want, sizeof u->want, "%s",
              version ? (version[0] == 'v' ? version + 1 : version) : "");
+    if (u->assets_only) {
+        char *suffix = strchr(u->want, '+');
+        if (suffix) *suffix = '\0';
+    }
     SDL_UnlockMutex(u->lock);
 }
 
@@ -1228,6 +1297,10 @@ LU_State *lu_create_fresh(const char *dir)
     u->progress = -1;
     u->dl_total = -1;
     u->fresh = 1;
+#ifdef __linux__
+    u->assets_only = 1;
+    lu_want(u, NULL);
+#endif
     u->full.id = u->bins.id = u->manifest.id = -1;
     snprintf(u->dir, sizeof u->dir, "%s", dir ? dir : ".");
     snprintf(u->installed, sizeof u->installed, "?");

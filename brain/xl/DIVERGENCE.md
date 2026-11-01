@@ -443,3 +443,9 @@ changed by this work. TD headless checks exercise initial-MCV construction,
 paid harvesting/production, level assignment, scouting/attacks, deterministic
 state diagnostics and save/resume; XL additionally requires its normal build
 and parity gates before runtime delivery.
+
+## Linux / 64-bit portability
+
+- `tiberiandawn/dllinterface.cpp`: decode the saved placement type through
+  `uintptr_t`, matching the same fix in vanilla. These values are encoded enum
+  indices; no save layout or exported ABI changes.

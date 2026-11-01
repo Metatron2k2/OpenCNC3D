@@ -102,6 +102,12 @@ const char *lu_host_summary(void);
  * ------------------------------------------------------------------------ */
 LU_State *lu_create_fresh(const char *dir);
 
+/* On Linux this installs shared assets for the native build's version from the
+ * existing Windows release, requiring its published checksums. Executables,
+ * libraries, settings and saves are excluded. The record keeps the native build
+ * version and records data_version separately. lu_want(NULL) keeps that version
+ * pin; an explicit --build selects the requested data release. */
+
 /* lu_want pins the build an install takes: "0.8.0" (or "v0.8.0") installs that release
  * from the site's list and fails, saying so, while the site does not list it; NULL or ""
  * takes the newest. Set it before lu_check. */

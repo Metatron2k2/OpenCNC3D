@@ -115,7 +115,12 @@
 #include <SDL.h>
 #include <signal.h>   /* the crash-stage handler below */
 #define GL_SILENCE_DEPRECATION 1
+/* Windows resolves this spelling through compat/win's extension wrappers. */
+#if defined(__APPLE__) || defined(_WIN32)
 #include <OpenGL/gl.h>
+#else
+#include <GL/gl.h>
+#endif
 
 /* TIER 2 (desktop) presentation. Five self-contained headers, in dependency order,
    and NOT ONE of them changes a world draw call -- see the header of fx_post.h for

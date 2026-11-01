@@ -27,6 +27,7 @@
 **
 */
 
+#include <stdint.h> // uintptr_t keeps encoded placement indices pointer-width safe.
 #include "opencnc3d_compat.h"   // OpenCNC3D: Win32 shims for non-Windows builds
 #include <stdio.h>
 
@@ -8007,7 +8008,7 @@ void DLLExportClass::Decode_Pointers(void)
         Sidebar_Glyphx_Decode_Pointers(&MultiplayerSidebars[i]);
 
         if (PlacementType[i]) {
-            StructType type = (StructType) reinterpret_cast<unsigned int>(PlacementType[i]);
+            StructType type = (StructType) reinterpret_cast<uintptr_t>(PlacementType[i]);
             PlacementType[i] = NULL;
             if (type >= STRUCT_FIRST && type < STRUCT_COUNT) {
 

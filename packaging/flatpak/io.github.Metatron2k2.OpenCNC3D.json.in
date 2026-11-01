@@ -1,0 +1,52 @@
+{
+  "app-id": "io.github.Metatron2k2.OpenCNC3D",
+  "runtime": "org.freedesktop.Platform",
+  "runtime-version": "26.08",
+  "sdk": "org.freedesktop.Sdk",
+  "sdk-extensions": ["org.freedesktop.Sdk.Extension.llvm22"],
+  "command": "opencnc3d",
+  "default-branch": "stable",
+  "finish-args": [
+    "--share=network",
+    "--share=ipc",
+    "--socket=wayland",
+    "--socket=fallback-x11",
+    "--socket=pulseaudio",
+    "--device=dri"
+  ],
+  "build-options": {
+    "prepend-path": "/usr/lib/sdk/llvm22/bin",
+    "strip": true,
+    "no-debuginfo": true,
+    "env": {
+      "CC": "clang",
+      "CXX": "clang++",
+      "OPENCNC3D_COOKED": "1",
+      "OPENCNC3D_SKIP_VERSION_HEADER": "1",
+      "OPENCNC3D_BUILD_ID": "@BUILD_ID@",
+      "OPENCNC3D_JOBS": "8"
+    }
+  },
+  "modules": [{
+    "name": "opencnc3d",
+    "buildsystem": "simple",
+    "build-commands": [
+      "python3 tools/linux/test-unityvfx-loading.py",
+      "bash tools/linux/build-linux.sh",
+      "install -d /app/lib/opencnc3d /app/share/licenses/io.github.Metatron2k2.OpenCNC3D",
+      "install -m755 build/linux/opencnc3d build/linux/opencnc3d-launcher build/linux/cnc_eyes build/linux/netcheck build/linux/gl_smoke /app/lib/opencnc3d/",
+      "install -m644 build/linux/TiberianDawn.so build/linux/RedAlert.so build/linux/TiberianDawnXL.so /app/lib/opencnc3d/",
+      "install -Dm755 packaging/flatpak/opencnc3d.sh /app/bin/opencnc3d",
+      "install -Dm644 packaging/flatpak/io.github.Metatron2k2.OpenCNC3D.desktop /app/share/applications/io.github.Metatron2k2.OpenCNC3D.desktop",
+      "install -Dm644 packaging/flatpak/io.github.Metatron2k2.OpenCNC3D.metainfo.xml /app/share/metainfo/io.github.Metatron2k2.OpenCNC3D.metainfo.xml",
+      "for icon in packaging/flatpak/icons/*.png; do size=$(basename \"$icon\" .png); install -Dm644 \"$icon\" \"/app/share/icons/hicolor/${size}x${size}/apps/io.github.Metatron2k2.OpenCNC3D.png\"; done",
+      "install -m644 LICENSE NOTICE.md /app/share/licenses/io.github.Metatron2k2.OpenCNC3D/"
+    ],
+    "sources": [{
+      "type": "archive",
+      "path": "opencnc3d-source.tar.gz",
+      "sha256": "@SOURCE_SHA256@",
+      "strip-components": 0
+    }]
+  }]
+}

@@ -22,7 +22,7 @@ const char *const lmod_ra_needs[] = {
     "ra3d/RedAlert.dll",
 #else
     "ra3d/opencnc3d",
-    "ra3d/RedAlert.dylib",
+    OPENCNC3D_RA_PATH,
 #endif
     "ra3d/dosmenu.pack",
     "ra3d/SCG01EA.pack",
@@ -104,7 +104,7 @@ int lmod_install_cached(const char *dir, int target, const char *build, int (*cb
 #ifdef _WIN32
     static const char *const td_required[] = {"TiberianDawn.dll", "CONQUER.MIX"};
 #else
-    static const char *const td_required[] = {"TiberianDawn.dylib", "CONQUER.MIX"};
+    static const char *const td_required[] = {OPENCNC3D_TD_LIBRARY, "CONQUER.MIX"};
 #endif
     if (lz_is_private_developer(dir)) {
         snprintf(err, (size_t)len, "This private source build is updated from its source checkout, not public game packages.");
@@ -145,7 +145,7 @@ int lmod_td_present(const char *dir)
 #ifdef _WIN32
     return lmod_has_file(dir, "TiberianDawn.dll") && lmod_has_file(dir, "opencnc3d-game.exe");
 #else
-    return lmod_has_file(dir, "TiberianDawn.dylib") && lmod_has_file(dir, "opencnc3d");
+    return lmod_has_file(dir, OPENCNC3D_TD_LIBRARY) && lmod_has_file(dir, "opencnc3d");
 #endif
 }
 

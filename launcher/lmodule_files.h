@@ -4,6 +4,7 @@
 static const char *const lmod_td_files[] = {
     "TiberianDawn.dylib",
     "TiberianDawn.dll",
+    "TiberianDawn.so",
     "CONQUER.MIX",
     "SCA01EA.pack",
     "SCB01EA.pack",
@@ -167,6 +168,7 @@ static const char *const lmod_ra_files[] = {
     "ra3d/3d/SCU14EA.pack",
     "ra3d/RedAlert.dll",
     "ra3d/RedAlert.dylib",
+    "ra3d/RedAlert.so",
     "ra3d/SCG01EA.pack",
     "ra3d/audio/ALLIES.MIX",
     "ra3d/audio/RA_LOCAL.MIX",

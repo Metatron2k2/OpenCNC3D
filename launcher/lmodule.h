@@ -10,6 +10,10 @@
  */
 #ifndef LMODULE_H
 #define LMODULE_H
+#include "../app/platform.h"
+
+/* Shared Dawn runtime data only; excludes executable code and player files. */
+int lmod_td_asset_file(const char *name);
 
 /* The Red Alert 3D module's folder, at the top of the install. */
 #define LMOD_RA_DIR "ra3d"

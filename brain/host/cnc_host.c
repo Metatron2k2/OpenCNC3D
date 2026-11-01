@@ -45,9 +45,33 @@ typedef void* cnc_lib_t;
 #define cnc_lib_sym(h, n) dlsym((h), (n))
 #define cnc_lib_error() dlerror()
 /* Relative to the working directory, matching the Windows default above. Override it
-   with the CNC_BRAIN environment variable or the command line; an absolute path here
+   with the OPENCNC3D_BRAIN environment variable; an absolute path here
    builds an executable that only runs on the machine that compiled it. */
+#ifdef __linux__
+#define DEFAULT_BRAIN "./TiberianDawn.so"
+#else
 #define DEFAULT_BRAIN "brain/vanilla/build-native/tiberiandawn/TiberianDawn.dylib"
+#endif
+#endif
+
+#ifdef __linux__
+#include <unistd.h>
+static const char* linux_default_brain(void)
+{
+    static char path[4096];
+    ssize_t n = readlink("/proc/self/exe", path, sizeof(path) - 1);
+    if (n > 0 && n < (ssize_t)sizeof(path) - 1) {
+        char *slash;
+        path[n] = '\0';
+        slash = strrchr(path, '/');
+        if (slash) {
+            size_t room = sizeof(path) - (size_t)(slash + 1 - path);
+            int written = snprintf(slash + 1, room, "TiberianDawn.so");
+            if (written >= 0 && (size_t)written < room) return path;
+        }
+    }
+    return DEFAULT_BRAIN;
+}
 #endif
 
 /* The engine's `bool` is 1 byte on every target we care about (Itanium C++ ABI and MSVC). */
@@ -1151,7 +1175,11 @@ int main(int argc, char** argv)
 
     const char* libpath = getenv("OPENCNC3D_BRAIN");
     if (libpath == NULL || libpath[0] == '\0') {
+#ifdef __linux__
+        libpath = linux_default_brain();
+#else
         libpath = DEFAULT_BRAIN;
+#endif
     }
 
     printf("OpenCNC3D headless host\n");

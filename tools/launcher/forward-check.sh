@@ -71,7 +71,10 @@ if [ "$rc" -eq 0 ] || [ -f "$game/argv.txt" ] \
 fi
 # This presence-only brain is intentionally inert: the shell stand-in above
 # receives arguments and never loads a game library. It is not a playable game.
-: > "$game/TiberianDawn.dylib"
+case "$(uname -s)" in
+    Linux) : > "$game/TiberianDawn.so" ;;
+    *) : > "$game/TiberianDawn.dylib" ;;
+esac
 
 # Twenty, the last two the script and its file. "--savedir" carries a space, which
 # has to arrive as one argument.

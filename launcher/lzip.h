@@ -169,6 +169,13 @@ typedef struct
 int lz_extract(const LZ_Lock *install, const char *zip, int strip, const char *const *last,
                const LZ_File *extra, LZ_Progress cb, void *user, char *err, int errlen);
 
+/* Extract a selected subset through the same rollback journal. Required members
+ * are checked before any changes; unselected entries never touch the install. */
+typedef int (*LZ_Select)(const char *relative_name);
+int lz_extract_selected(const LZ_Lock *install, const char *zip, int strip,
+                        LZ_Select select, const char *const *required,
+                        const LZ_File *extra, LZ_Progress cb, void *user, char *err, int errlen);
+
 /* Restore a local module package under the lock this process already owns.
  * Preflight every entry against the exact ownership list, reject duplicates and
  * require every required path before journalled extraction begins. */

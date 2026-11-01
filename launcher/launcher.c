@@ -1810,6 +1810,11 @@ static void l_i_start(L_App *a)
 {
     if (!a->media)
         return;
+#ifdef __linux__
+    /* A data repair can start in an existing install whose updater owns its lock. */
+    lu_destroy(a->up);
+    a->up = NULL;
+#endif
     lu_destroy(a->fresh);
     a->fresh = lu_create_fresh(a->dir);
     if (!a->fresh) {
@@ -3219,8 +3224,18 @@ static void l_usage(void)
 static int l_install_offer(const L_App *a)
 {
     struct stat st;
-    if (!a->dir[0] || lz_is_install(a->dir) || l_has_named_file(a->dir, L_GAME_EXE))
+    if (!a->dir[0])
         return 0;
+#ifdef __linux__
+    /* A source build already has its runtime, but still needs shared game data. */
+    if (lz_is_private_developer(a->dir) ||
+        (l_has_named_file(a->dir, "dosmenu.pack") && l_has_named_file(a->dir, "SCG01EA.pack") &&
+         l_has_named_file(a->dir, "CONQUER.MIX")))
+        return 0;
+#else
+    if (lz_is_install(a->dir) || l_has_named_file(a->dir, L_GAME_EXE))
+        return 0;
+#endif
     if (strstr(a->dir, ".app/Contents"))
         return 0;
     return stat(a->dir, &st) == 0 && S_ISDIR(st.st_mode) && !lz_is_symlink(a->dir);
@@ -3276,12 +3291,20 @@ static int l_ask_fetch_pack(const char *dir)
     SDL_MessageBoxData d;
     char msg[1600];
     int hit = 0;
+#ifdef __linux__
+    snprintf(msg, sizeof msg,
+             "OpenCNC3D's game data is not installed in this folder yet:\n%s\n\n"
+             "Download the game data for this build from opencnc3d.com? The launcher "
+             "first downloads its menu art, then opens Setup for the game data and "
+             "optional movies and music. Your Linux game and libraries are kept.", dir);
+#else
     snprintf(msg, sizeof msg,
              "OpenCNC3D is not installed in this folder yet:\n%s\n\n"
              "The launcher can install it from opencnc3d.com. To show its setup screen it "
              "first downloads its menu art, a few MB; then it asks which of the movies and "
              "music to download with the game.",
              dir);
+#endif
     memset(&d, 0, sizeof d);
     d.flags = SDL_MESSAGEBOX_INFORMATION;
     d.title = "OpenCNC3D";
@@ -3820,7 +3843,8 @@ int main(int argc, char **argv)
     a.install_offer = l_install_offer(&a);
     snprintf(path, sizeof path, "%s/dosmenu.pack", a.dir);
     a.pack = db_pack_load(path, err, sizeof err);
-    if (!a.pack && a.install_offer && !shot[0] && !headless && l_ask_fetch_pack(a.dir)) {
+    if (!a.pack && a.install_offer && !shot[0] && !headless &&
+        !getenv("OPENCNC3D_BACKGROUND") && l_ask_fetch_pack(a.dir)) {
         /* A folder holding only the launcher, and the player said yes: the art first,
          * with the window up, and then the launcher carries on to INSTALL. */
         if (l_open_window(&a, scale) && l_fetch_pack_window(&a))
@@ -3852,7 +3876,8 @@ int main(int argc, char **argv)
                      "OpenCNC3D.app in it.",
                      a.dir, err);
         lu_destroy(a.up);
-        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "OpenCNC3D", msg, NULL);
+        if (!getenv("OPENCNC3D_BACKGROUND") || !strcmp(getenv("OPENCNC3D_BACKGROUND"), "0"))
+            SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "OpenCNC3D", msg, NULL);
         fprintf(stderr, "%s\n", msg);
         return 1;
     }

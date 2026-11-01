@@ -729,6 +729,7 @@ typedef struct
     int strip;
     const char *const *last;
     const LZ_File *extra;
+    LZ_Select select;
     int pass; /* 0: every entry not named in `last`; 1: only those */
     LZ_Progress cb;
     void *user;
@@ -1623,6 +1624,8 @@ static int lz_extract_cb(void *user, FILE *f, const LZ_Entry *e, char *err, int 
     rel = lz_strip(e->name, x->strip);
     if (!rel)
         return 1;
+    if (x->select && !x->select(rel))
+        return 1;
     if (lz_is_last(rel, x->last) != x->pass)
         return 1; /* rule 5: this entry belongs to the other pass */
     if (lz_is_extra(rel, x->extra))
@@ -1650,8 +1653,8 @@ static int lz_extract_cb(void *user, FILE *f, const LZ_Entry *e, char *err, int 
     return lz_tick(x, e, err, errlen);
 }
 
-int lz_extract(const LZ_Lock *install, const char *zip, int strip, const char *const *last,
-               const LZ_File *extra, LZ_Progress cb, void *user, char *err, int errlen)
+static int lz_extract_impl(const LZ_Lock *install, const char *zip, int strip, const char *const *last,
+               const LZ_File *extra, LZ_Select select, LZ_Progress cb, void *user, char *err, int errlen)
 {
     LZ_Ext x;
     const LZ_File *m;
@@ -1682,6 +1685,7 @@ int lz_extract(const LZ_Lock *install, const char *zip, int strip, const char *c
     x.strip = strip;
     x.last = last;
     x.extra = extra;
+    x.select = select;
     x.cb = cb;
     x.user = user;
     x.naps = 40;
@@ -1742,6 +1746,65 @@ int lz_extract(const LZ_Lock *install, const char *zip, int strip, const char *c
     lz_busy--;
     free(x.rec);
     return ok;
+}
+
+int lz_extract(const LZ_Lock *install, const char *zip, int strip, const char *const *last,
+               const LZ_File *extra, LZ_Progress cb, void *user, char *err, int errlen)
+{
+    return lz_extract_impl(install, zip, strip, last, extra, NULL, cb, user, err, errlen);
+}
+
+typedef struct {
+    int strip, count;
+    LZ_Select select;
+    const char *const *required;
+    unsigned char *seen;
+} LZ_Selection;
+static int lz_selection_cb(void *user, FILE *f, const LZ_Entry *e, char *err, int len)
+{
+    LZ_Selection *s = (LZ_Selection *)user;
+    const char *rel;
+    int i;
+    unsigned type = (e->attrs >> 16) & 0170000;
+    (void)f;
+    if (!lz_name_ok(e->name)) {
+        snprintf(err, (size_t)len, "The archive has an unsafe path: %.120s", e->name);
+        return -1;
+    }
+    rel = lz_strip(e->name, s->strip);
+    if (!rel || !s->select(rel)) return 1;
+    if (type && type != 0100000) {
+        snprintf(err, (size_t)len, "The asset package has a non-file entry: %.120s", rel);
+        return -1;
+    }
+    for (i = 0; i < s->count; i++) if (!strcmp(rel, s->required[i])) {
+        if (s->seen[i]++) {
+            snprintf(err, (size_t)len, "The asset package repeats %.120s", rel);
+            return -1;
+        }
+    }
+    return 1;
+}
+int lz_extract_selected(const LZ_Lock *install, const char *zip, int strip,
+                        LZ_Select select, const char *const *required,
+                        const LZ_File *extra, LZ_Progress cb, void *user, char *err, int len)
+{
+    LZ_Selection s;
+    int i, ok;
+    if (!select || !install || !install->held) {
+        snprintf(err, (size_t)len, "The asset installation is not locked."); return 0;
+    }
+    memset(&s, 0, sizeof s);
+    s.strip = strip; s.select = select; s.required = required;
+    while (required && required[s.count]) s.count++;
+    s.seen = (unsigned char *)calloc((size_t)s.count + 1, 1);
+    if (!s.seen) {snprintf(err, (size_t)len, "Not enough memory to check the assets."); return 0;}
+    ok = lz_walk_cd(zip, lz_selection_cb, &s, err, len);
+    for (i = 0; ok && i < s.count; i++) if (!s.seen[i]) {
+        snprintf(err, (size_t)len, "The asset package is missing %.120s", required[i]); ok = 0;
+    }
+    free(s.seen);
+    return ok && lz_extract_impl(install, zip, strip, NULL, extra, select, cb, user, err, len);
 }
 
 void lz_settle(const LZ_Lock *install)

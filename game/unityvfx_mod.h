@@ -287,13 +287,16 @@ static bool uvfx_load_seed(const std::string& path, UvfxSeed& s, const UvfxPack&
         if (o + 4 > b.size() || uvfx_u32(&b[o]) != nsys) return false;
         o += 4;
         for (unsigned k = 0; k < nsys; k++) {
+            if (o + 4 > b.size()) return false;
             const unsigned n = uvfx_u32(&b[o]); o += 4;
             if (o + (size_t)n * nf * 4 > b.size()) return false;
             s.off[f * nsys + k] = (unsigned)(s.recs.size() / UVR_N);
             s.cnt[f * nsys + k] = n;
             const size_t base = s.recs.size();
             s.recs.resize(base + (size_t)n * nf);
-            memcpy(&s.recs[base], &b[o], (size_t)n * nf * 4);
+            /* Empty particle systems have no records. Indexing the vector's end
+               is invalid even when memcpy would copy zero bytes. */
+            if (n) memcpy(s.recs.data() + base, b.data() + o, (size_t)n * nf * 4);
             o += (size_t)n * nf * 4;
         }
     }
@@ -307,9 +310,9 @@ static bool uvfx_load_mesh(const std::string& path, UvfxMesh& m)
     const unsigned vc = uvfx_u32(&b[8]), ic = uvfx_u32(&b[12]);
     if (b.size() != 16 + (size_t)vc * 64 + (size_t)ic * 4) return false;
     m.v.resize((size_t)vc * 16);
-    memcpy(&m.v[0], &b[16], (size_t)vc * 64);
+    if (vc) memcpy(m.v.data(), b.data() + 16, (size_t)vc * 64);
     m.idx.resize(ic);
-    memcpy(&m.idx[0], &b[16 + (size_t)vc * 64], (size_t)ic * 4);
+    if (ic) memcpy(m.idx.data(), b.data() + 16 + (size_t)vc * 64, (size_t)ic * 4);
     return true;
 }
 

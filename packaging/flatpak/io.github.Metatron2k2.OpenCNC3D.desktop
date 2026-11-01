@@ -1,0 +1,17 @@
+[Desktop Entry]
+Type=Application
+Name=OpenCNC3D
+GenericName=Real-time strategy game
+Comment=Command & Conquer in three dimensions
+Exec=opencnc3d
+Icon=io.github.Metatron2k2.OpenCNC3D
+Terminal=false
+Categories=Game;StrategyGame;
+Keywords=Command;Conquer;CNC;RTS;Strategy;
+StartupNotify=true
+StartupWMClass=io.github.Metatron2k2.OpenCNC3D
+Actions=Play;
+
+[Desktop Action Play]
+Name=Play OpenCNC3D
+Exec=opencnc3d --play

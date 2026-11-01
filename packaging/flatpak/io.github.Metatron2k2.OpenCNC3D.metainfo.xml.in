@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.Metatron2k2.OpenCNC3D</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <name>OpenCNC3D</name>
+  <summary>Command &amp; Conquer in three dimensions</summary>
+  <description>
+    <p>Play Command &amp; Conquer with its Nintendo 64 three-dimensional presentation,
+    the original Tiberian Dawn game logic, and a native OpenGL renderer.</p>
+    <p>The launcher downloads the matching game data on first use. Movies and music
+    are optional downloads. Game data, settings and saves persist across app updates.</p>
+  </description>
+  <developer id="io.github.metatron2k2">
+    <name>OpenCNC3D contributors</name>
+  </developer>
+  <url type="homepage">https://opencnc3d.com</url>
+  <url type="vcs-browser">https://github.com/Metatron2k2/OpenCNC3D</url>
+  <launchable type="desktop-id">io.github.Metatron2k2.OpenCNC3D.desktop</launchable>
+  <provides><binary>opencnc3d</binary></provides>
+  <categories><category>Game</category><category>StrategyGame</category></categories>
+  <releases><release version="@VERSION@" date="@DATE@" type="development"/></releases>
+</component>

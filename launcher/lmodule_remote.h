@@ -8,13 +8,12 @@
 #ifdef _WIN32
 #include <direct.h>
 #include <windows.h>
-#define LMOD_PLATFORM "windows"
 #define LMOD_MKDIR(p) _mkdir(p)
 #else
 #include <unistd.h>
-#define LMOD_PLATFORM "macos"
 #define LMOD_MKDIR(p) mkdir(p,0755)
 #endif
+#define LMOD_PLATFORM OPENCNC3D_PLATFORM
 #define LMOD_CAP (4*1024*1024)
 #define LMOD_FILES 20000
 
@@ -63,7 +62,7 @@ int lmod_catalog_read(const char *build,const char *json,const char *catalog,LMO
         if(sscanf(line,"version %99s %c",result.version,&extra)==1){if(version++||strcmp(lmod_version(build),result.version))goto parsebad;continue;}
         if(sscanf(line,"%31s %15s %23s %255s %lld %79s %c",key,id,platform,name,&size,sha,&extra)!=6||strcmp(key,"module"))goto parsebad;
         if(strcmp(id,"ra")&&strcmp(id,"td"))goto parsebad;
-        if(strcmp(platform,"macos")&&strcmp(platform,"windows"))goto parsebad;
+        if(strcmp(platform,"macos")&&strcmp(platform,"windows")&&strcmp(platform,"linux"))goto parsebad;
         if(strcmp(platform,LMOD_PLATFORM))continue;
         target=!strcmp(id,"ra");
         {char expected[256];snprintf(expected,sizeof expected,"OpenCNC3D-module-%s-%s-v%s.zip",id,platform,lmod_version(build));if(strcmp(name,expected))goto parsebad;}
@@ -115,7 +114,7 @@ static int lmod_runtime_name(int target,const char *name)
         "terrainenh_RA_SNOW.pack","terrainenh_RA_TEMPERAT.pack","terrainseam_RA_SNOW.pack","terrainseam_RA_TEMPERAT.pack",NULL};
     static const char *const ra_local_packs[]={"terrainenh_RA_SNOW.pack","terrainenh_RA_TEMPERAT.pack",
         "terrainseam_RA_SNOW.pack","terrainseam_RA_TEMPERAT.pack",NULL};
-    static const char *const root[]={"opencnc3d","opencnc3d-game.exe","cnc_eyes","cnc_eyes.exe","TiberianDawn.dylib","TiberianDawn.dll","TiberianDawnXL.dylib","TiberianDawnXL.dll","RedAlert.dylib","RedAlert.dll","SDL2.dll","libSDL2-2.0.0.dylib","libSDL3.dylib","CONQUER.MIX","temperate_grass_rgb.bin","netcheck","netcheck.exe","OpenCNC3D-Diagnostics.exe","skirmish-maps.txt","LICENSE","NOTICE.md",NULL};
+    static const char *const root[]={"opencnc3d","opencnc3d-game.exe","cnc_eyes","cnc_eyes.exe","TiberianDawn.dylib","TiberianDawn.dll","TiberianDawn.so","TiberianDawnXL.dylib","TiberianDawnXL.dll","TiberianDawnXL.so","RedAlert.dylib","RedAlert.dll","RedAlert.so","SDL2.dll","libSDL2-2.0.0.dylib","libSDL3.dylib","CONQUER.MIX","temperate_grass_rgb.bin","netcheck","netcheck.exe","OpenCNC3D-Diagnostics.exe","skirmish-maps.txt","LICENSE","NOTICE.md",NULL};
     const char *p=name,*base,*dot;int i,ra_local=0;char lower[1024],*part,*slash;
     static const char *const protected_parts[]={"movies","music","saves","savegames","settings","user_maps","logs","shots","screenshots",".git",NULL};
     if(!name||strlen(name)>900||!lz_name_safe(name)||strchr(name,'\\')||name[0]=='.')return 0;
@@ -151,6 +150,16 @@ static int lmod_runtime_name(int target,const char *name)
     return 0;
 }
 typedef struct {char **owned;int count;} LMOD_Files;
+int lmod_td_asset_file(const char *name)
+{
+    const char *base, *dot;
+    if (!lmod_runtime_name(0, name)) return 0;
+    base = strrchr(name, '/'); base = base ? base + 1 : name;
+    dot = strrchr(base, '.');
+    if (!dot || strstr(base,".so.") || lmod_equal(dot,".exe") || lmod_equal(dot,".dll") ||
+        lmod_equal(dot,".so") || lmod_equal(dot,".dylib")) return 0;
+    return 1;
+}
 static void lmod_files_free(LMOD_Files *f){int i;for(i=0;i<f->count;i++)free(f->owned[i]);free(f->owned);memset(f,0,sizeof *f);}
 static int lmod_files_parse(const char *text,int target,const char *build,LMOD_Files *out,char *err,int len)
 {
@@ -187,7 +196,7 @@ static int lmod_install_public(const char *dir,int target,const char *build,cons
 #ifdef _WIN32
     static const char *const td_required[]={"TiberianDawn.dll","opencnc3d-game.exe","CONQUER.MIX"};
 #else
-    static const char *const td_required[]={"TiberianDawn.dylib","opencnc3d","CONQUER.MIX"};
+    static const char *const td_required[]={OPENCNC3D_TD_LIBRARY,"opencnc3d","CONQUER.MIX"};
 #endif
     if(lz_is_private_developer(dir)){snprintf(err,(size_t)len,"This private source build is updated from its source checkout, not public game packages.");return 0;}
     if(!lmod_settle(dir,err,len))return 0;
@@ -215,7 +224,7 @@ static int lmod_removable(int target,const char *name)
 {
     int i;if(!strncmp(name,"opencnc3d-module-",17))return 1;
     if(target)return !strncmp(name,"ra3d/",5);
-    if(!strcmp(name,"TiberianDawnXL.dylib")||!strcmp(name,"TiberianDawnXL.dll"))return 1;
+    if(!strcmp(name,"TiberianDawnXL.dylib")||!strcmp(name,"TiberianDawnXL.dll")||!strcmp(name,"TiberianDawnXL.so"))return 1;
     if(!strncmp(name,"content/",8)||!strncmp(name,"missions/",9)||!strncmp(name,"dosdata/",8))return 1;
     if(!strcmp(name,"opencnc3d")||!strcmp(name,"opencnc3d-game.exe")||!strcmp(name,"cnc_eyes")||!strcmp(name,"cnc_eyes.exe")||
        !strcmp(name,"netcheck")||!strcmp(name,"netcheck.exe")||!strcmp(name,"OpenCNC3D-Diagnostics.exe"))return 1;

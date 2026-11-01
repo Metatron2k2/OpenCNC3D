@@ -590,11 +590,7 @@ static int load_slot_prepare(GameOpts* opt, int slot)
            Start New Game does (the side follows from the mission's name), and the engine's
            payload then replaces the world it booted. */
         opt->ra3d = 1;
-#ifdef _WIN32
-        opt->dylib = "ra3d/RedAlert.dll";
-#else
-        opt->dylib = "ra3d/RedAlert.dylib";
-#endif
+        opt->dylib = OPENCNC3D_RA_PATH;
         opt->content = "ra3d/data";
         opt->dir = "ra3d/missions/";
         opt->dosdata = "ra3d/audio";
@@ -1534,11 +1530,7 @@ static void ra_engine_opts(GameOpts* opt, const char* scen)
     if (pf) fclose(pf);
     else snprintf(pack, sizeof pack, "ra3d/SCG01EA.pack");
     opt->ra3d = 1;
-#ifdef _WIN32
-    opt->dylib = "ra3d/RedAlert.dll";
-#else
-    opt->dylib = "ra3d/RedAlert.dylib";
-#endif
+    opt->dylib = OPENCNC3D_RA_PATH;
     opt->content = "ra3d/data";
     opt->dir = "ra3d/missions/";
     opt->dosdata = "ra3d/audio";
@@ -1691,11 +1683,7 @@ static const char* lobby_mission_dir(const char* dir)
 /* The brain whose order wire this module's rooms advertise and are judged by. */
 static const char* lobby_brain(const char* dylib)
 {
-#ifdef _WIN32
-    return g_ra3dPreview ? "ra3d/RedAlert.dll" : dylib;
-#else
-    return g_ra3dPreview ? "ra3d/RedAlert.dylib" : dylib;
-#endif
+    return g_ra3dPreview ? OPENCNC3D_RA_PATH : dylib;
 }
 
 /* A RED ALERT ROOM'S OPENING MATCH, over what the lobby module's own defaults made: every
@@ -7175,11 +7163,7 @@ int main(int argc, char** argv)
                 if (g_ra3dPreview) {
                     /* Select the campaign before opening its own first mission. */
                     opt.ra3d = 1;
-#ifdef _WIN32
-                    opt.dylib = "ra3d/RedAlert.dll";
-#else
-                    opt.dylib = "ra3d/RedAlert.dylib";
-#endif
+                    opt.dylib = OPENCNC3D_RA_PATH;
                     opt.content = "ra3d/data";
                     opt.dir = "ra3d/missions/";
                     opt.dosdata = "ra3d/audio";

@@ -37,15 +37,13 @@
 
 #include <SDL.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
+#include "../app/platform.h"
 
 /* The platform's own name for the brain. Everything that is not an explicit --dylib is
    derived from this, so a shipped build never has to be told where its own brain is. */
-#ifdef _WIN32
-#  define OPENCNC3D_BRAIN_LIB "TiberianDawn.dll"
-#else
-#  define OPENCNC3D_BRAIN_LIB "TiberianDawn.dylib"
-#endif
+#define OPENCNC3D_BRAIN_LIB OPENCNC3D_TD_LIBRARY
 
 /* The brain lives in one place in the working tree, another in the installed
    share/OpenCNC3D tree, and a third beside the binary in a shipped build. Probe all of
@@ -59,14 +57,21 @@ static const char* opencnc3d_find_brain(const char* explicitPath)
     static const char* candidates[] = {
         "../brain/lib/" OPENCNC3D_BRAIN_LIB,
         "../brain/vanilla/build-native/tiberiandawn/" OPENCNC3D_BRAIN_LIB,
-        OPENCNC3D_BRAIN_LIB,
+        "./" OPENCNC3D_BRAIN_LIB,
         NULL
     };
     static char beside[1024];
     int i;
 
-    if (explicitPath && *explicitPath)
+    if (explicitPath && *explicitPath) {
+        /* ELF's loader does not search the working directory for a bare name. */
+        if (!strchr(explicitPath, '/') && !strchr(explicitPath, '\\') &&
+            access(explicitPath, R_OK) == 0) {
+            snprintf(beside, sizeof beside, "./%s", explicitPath);
+            return beside;
+        }
         return explicitPath;
+    }
     for (i = 0; candidates[i]; i++)
         if (access(candidates[i], R_OK) == 0)
             return candidates[i];

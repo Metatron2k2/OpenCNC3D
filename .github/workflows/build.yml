@@ -13,6 +13,39 @@ permissions:
 # while it is green.
 
 jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libsdl2-dev libgl1-mesa-dev libcurl4-openssl-dev zlib1g-dev xvfb xauth
+      - name: Source and engine patch guards
+        run: |
+          tools/win/check-sources.sh
+          tools/check-xl-common.sh
+          tools/check-brain-checkout.sh
+      - name: Build the native Linux desktop stack
+        run: tools/linux/build-linux.sh
+      - name: Checked-vector effect reader regression
+        run: python3 tools/linux/test-unityvfx-loading.py
+      - name: Asset-free native runtime gates
+        run: python3 tools/linux/test-linux.py 2>&1 | tee build/linux/test.log
+      - name: Linux first-run asset installer
+        run: python3 tools/linux/test-assets.py 2>&1 | tee build/linux/asset-tests.log
+      - name: SDL and OpenGL through software-rendered X11
+        run: xvfb-run -a env SDL_VIDEODRIVER=x11 LIBGL_ALWAYS_SOFTWARE=1 build/linux/gl_smoke
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-build-results-${{ github.sha }}
+          path: |
+            build/linux/build.log
+            build/linux/test.log
+            build/linux/asset-tests.log
+            build/linux/ra-bootstrap-linux.txt
+
   macos:
     runs-on: macos-latest
     steps:
